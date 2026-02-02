@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Smart Shift Scheduler</title>
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+    <style>
+        body { font-family: "Helvetica Neue", Arial, sans-serif; max-width: 1100px; margin: 0 auto; padding: 20px; background-color: #f4f4f9; color: #333; }
+        .card { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1, h2 { margin-top: 0; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], input[type="date"], input[type="number"] { padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        button { background-color: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 16px; transition: background 0.3s; }
+        button:hover { background-color: #0056b3; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #f8f9fa; }
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; color: white; }
+        .badge-leader { background-color: #28a745; }
+        .badge-staff { background-color: #6c757d; }
+        
+        #calendar { max-width: 1000px; margin: 0 auto; min-height: 700px; }
+        .fc-event-title { font-weight: bold; }
+
+        /* コスト表示エリアのデザイン */
+        .cost-panel { 
+            background-color: #28a745; color: white; 
+            padding: 15px; border-radius: 8px; text-align: right; font-size: 1.2em; font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .cost-value { font-size: 1.5em; margin-left: 10px; }
+    </style>
+</head>
+<body>
+    <h1>📅 Smart Shift Scheduler <small>(Ver 2.0)</small></h1>
+
+    <div class="card">
+        <h2>1. スタッフ登録</h2>
+        <div class="form-group">
+            <label>名前</label>
+            <input type="text" id="staffName" placeholder="例: 佐藤" style="width: 150px;">
+            
+            <label style="display:inline-block; margin-left: 10px;">時給 (円)</label>
+            <input type="number" id="staffWage" placeholder="1000" value="1000" style="width: 80px;">
+
+            <label style="display:inline; margin-left: 10px;">
+                <input type="checkbox" id="isLeader"> リーダー
+            </label>
+            <button onclick="addStaff()" style="margin-left: 10px;">登録</button>
+        </div>
+        <details>
+            <summary style="cursor:pointer; color:#007bff;">現在のスタッフ一覧を表示</summary>
+            <table id="staffTable">
+                <thead><tr><th>ID</th><th>名前</th><th>時給</th><th>権限</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </details>
+    </div>
+
+    <div class="card">
+        <h2>2. シフト作成設定</h2>
+        <div class="form-group">
+            <label>シフト開始日: <input type="date" id="startDate"></label>
+            <button onclick="generateShift()">AIでシフトを生成・保存</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="cost-panel">
+            期間中の推定人件費: <span id="totalCost" class="cost-value">¥0</span>
+        </div>
+        <div id="calendar"></div>
+    </div>
+
+    <script>
+        const API_URL = "http://localhost:8080/api";
+        let calendar;
+        let staffMap = {}; // ID -> {name, wage} のオブジェクトに変更
+
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('startDate').valueAsDate = new Date();
+            
+            const calendarEl = document.getElementById('calendar');
+            calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                locale: 'ja',
+                editable: true,  
+                droppable: true,
+                headerToolbar: {
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: 'dayGridMonth,listMonth'
+                },
+                events: [],
+
+                eventDrop: async function(info) {
+                    // (変更なし: 重複チェックと更新処理)
+                    const shiftId = info.event.id;
+                    const newDate = info.event.startStr;
+                    const staffId = info.event.extendedProps.staffId;
+
+                    const allEvents = calendar.getEvents();
+                    const isDuplicate = allEvents.some(evt => {
+                        return evt.id !== info.event.id && 
+                               evt.startStr === newDate && 
+                               evt.extendedProps.staffId === staffId;
+                    });
+                    if (isDuplicate) {
+                        alert("エラー：その日には既に本人がシフトに入っています！");
+                        info.revert(); return;
+                    }
+                    if (!confirm(`${info.event.title} を ${newDate} に移動しますか？`)) {
+                        info.revert(); return;
+                    }
+                    try {
+                        const res = await fetch(`${API_URL}/shift/${shiftId}`, {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ date: newDate })
+                        });
+                        if (!res.ok) throw new Error("保存失敗");
+                        calculateTotalCost(); // ★移動したらコスト再計算（月を跨ぐ場合などに備えて）
+                    } catch (e) {
+                        alert(e); info.revert();
+                    }
+                },
+                eventClick: async function(info) {
+                    if (confirm(`${info.event.title} を削除しますか？`)) {
+                        try {
+                            const res = await fetch(`${API_URL}/shift/${info.event.id}`, { method: "DELETE" });
+                            if (!res.ok) throw new Error("削除失敗");
+                            info.event.remove();
+                            calculateTotalCost(); // ★削除したらコスト再計算
+                        } catch (e) { alert(e); }
+                    }
+                },
+                // ★表示期間が変わった時にも再計算したいので追加
+                datesSet: function() {
+                    calculateTotalCost();
+                }
+            });
+            calendar.render();
+            initData();
+        });
+
+        async function initData() {
+            await loadStaff();          
+            await loadExistingShifts(); 
+        }
+
+        async function loadStaff() {
+            try {
+                const res = await fetch(`${API_URL}/staff`);
+                const staffList = await res.json();
+                staffMap = {};
+                const tbody = document.querySelector("#staffTable tbody");
+                tbody.innerHTML = "";
+                staffList.forEach(s => {
+                    // ★時給情報も保存
+                    staffMap[s.id] = { name: s.name, wage: s.hourly_wage || 0 };
+
+                    const badge = s.is_leader ? '<span class="badge badge-leader">Leader</span>' : '<span class="badge badge-staff">Staff</span>';
+                    tbody.innerHTML += `<tr><td>${s.id}</td><td>${s.name}</td><td>¥${s.hourly_wage}</td><td>${badge}</td></tr>`;
+                });
+            } catch(e) { console.error(e); }
+        }
+
+        async function loadExistingShifts() {
+            try {
+                const res = await fetch(`${API_URL}/shift`);
+                if (!res.ok) return;
+                const shifts = await res.json();
+                
+                const events = shifts.map(s => {
+                    const staffInfo = staffMap[s.staff_id] || { name: `ID:${s.staff_id}`, wage: 0 };
+                    
+                    let title = `${staffInfo.name} `; 
+                    let color = "";
+                    let hours = 0;
+
+                    if (s.shift_type === 1) { 
+                        title += "早(09-18)"; 
+                        color = "#3788d8"; 
+                        hours = 8; // 休憩1時間引いて8時間労働と仮定
+                    } else if (s.shift_type === 2) { 
+                        title += "遅(13-22)"; 
+                        color = "#28a745"; 
+                        hours = 8;
+                    }
+                    
+                    return {
+                        id: s.id,
+                        title: title,
+                        start: s.date,
+                        color: color,
+                        extendedProps: { 
+                            staffId: s.staff_id,
+                            wage: staffInfo.wage, // ★イベントに時給と時間を埋め込む
+                            hours: hours
+                        }
+                    };
+                });
+
+                calendar.removeAllEvents();
+                calendar.addEventSource(events);
+                
+                // データ読み込み後に計算
+                calculateTotalCost();
+
+            } catch (e) { console.error("シフト読み込みエラー:", e); }
+        }
+
+        // ★人件費計算ロジック
+        function calculateTotalCost() {
+            // カレンダーに表示されている全イベントを取得
+            const events = calendar.getEvents();
+            let total = 0;
+
+            events.forEach(evt => {
+                const wage = evt.extendedProps.wage || 0;
+                const hours = evt.extendedProps.hours || 0;
+                total += wage * hours;
+            });
+
+            // 3桁区切りで表示
+            document.getElementById("totalCost").innerText = "¥" + total.toLocaleString();
+        }
+
+        async function addStaff() {
+            const name = document.getElementById("staffName").value;
+            const wage = document.getElementById("staffWage").value; // ★時給取得
+            const isLeader = document.getElementById("isLeader").checked;
+            
+            if(!name) return alert("名前を入れてください");
+
+            await fetch(`${API_URL}/staff`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ 
+                    name, 
+                    is_leader: isLeader,
+                    hourly_wage: parseInt(wage) // ★数値として送信
+                })
+            });
+            document.getElementById("staffName").value = "";
+            initData(); 
+        }
+
+        async function generateShift() {
+            const startDateStr = document.getElementById("startDate").value;
+            if(!startDateStr) return alert("開始日を選んでください");
+
+            const reqBody = {
+                start_date: startDateStr,
+                days: 30, 
+                requests: [],
+                requirements: [] 
+            };
+            alert("AIが計算・保存中です...");
+            try {
+                const res = await fetch(`${API_URL}/shift`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(reqBody)
+                });
+                const data = await res.json();
+                if(res.ok) {
+                    await loadExistingShifts(); 
+                    alert(data.message);
+                } else {
+                    alert("エラー: " + JSON.stringify(data));
+                }
+            } catch (e) { alert("エラー: " + e); }
+        }
+    </script>
+</body>
+</html>

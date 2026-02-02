@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: shift_db
+    ports:
+      - "5433:5432"  # ★ここを変更 (PCの5433番 -> Dockerの5432番)
+    environment:
+      - POSTGRES_USER=manager      # ★ユーザー名を変更
+      - POSTGRES_PASSWORD=manager123 # ★パスワードを変更
+      - POSTGRES_DB=shift_db
+    volumes:
+      - postgres_data_v2:/var/lib/postgresql/data # ★ボリューム名も変えて新品にする
+
+volumes:
+  postgres_data_v2: # ★ここも合わせる

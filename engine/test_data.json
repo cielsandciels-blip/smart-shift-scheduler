@@ -1,0 +1,17 @@
+{
+  "staff_list": [
+    {"id": 1, "name": "Aさん", "is_leader": true},
+    {"id": 2, "name": "Bさん", "is_leader": false},
+    {"id": 3, "name": "Cさん", "is_leader": false}
+  ],
+  "requests": [
+    {"staff_id": 1, "day": 1, "priority": 0}, 
+    {"staff_id": 2, "day": 2, "priority": 2} 
+  ],
+  "requirements": [
+    {"day": 1, "required_count": 2, "required_leaders": 1},
+    {"day": 2, "required_count": 2, "required_leaders": 0},
+    {"day": 3, "required_count": 2, "required_leaders": 0}
+  ],
+  "days": 3
+}
