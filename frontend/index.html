@@ -10,9 +10,10 @@
         h1, h2 { margin-top: 0; }
         .form-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input[type="text"], input[type="date"], input[type="number"] { padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        input[type="text"], input[type="date"], input[type="number"], select { padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
         button { background-color: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 16px; transition: background 0.3s; }
         button:hover { background-color: #0056b3; }
+        button.delete-btn { background-color: #dc3545; padding: 2px 8px; font-size: 12px; }
         
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
@@ -22,65 +23,93 @@
         .badge-staff { background-color: #6c757d; }
         
         #calendar { max-width: 1000px; margin: 0 auto; min-height: 700px; }
-        .fc-event-title { font-weight: bold; }
-
-        /* コスト表示エリアのデザイン */
-        .cost-panel { 
-            background-color: #28a745; color: white; 
-            padding: 15px; border-radius: 8px; text-align: right; font-size: 1.2em; font-weight: bold;
-            margin-bottom: 10px;
-        }
-        .cost-value { font-size: 1.5em; margin-left: 10px; }
+        .cost-panel { background-color: #28a745; color: white; padding: 15px; border-radius: 8px; text-align: right; font-size: 1.2em; font-weight: bold; margin-bottom: 10px; }
+        
+        /* 希望休のデザイン */
+        .fc-event.request-ng { background-color: #dc3545 !important; border-color: #dc3545 !important; opacity: 0.8; }
     </style>
 </head>
 <body>
-    <h1>📅 Smart Shift Scheduler <small>(Ver 2.0)</small></h1>
+    <h1>📅 Smart Shift Scheduler <small>(Lv.2)</small></h1>
 
     <div class="card">
         <h2>1. スタッフ登録</h2>
         <div class="form-group">
-            <label>名前</label>
-            <input type="text" id="staffName" placeholder="例: 佐藤" style="width: 150px;">
+            <input type="text" id="staffName" placeholder="名前" style="width: 100px;">
+            <input type="number" id="staffWage" placeholder="時給" value="1000" style="width: 80px;">
             
-            <label style="display:inline-block; margin-left: 10px;">時給 (円)</label>
-            <input type="number" id="staffWage" placeholder="1000" value="1000" style="width: 80px;">
-
-            <label style="display:inline; margin-left: 10px;">
-                <input type="checkbox" id="isLeader"> リーダー
-            </label>
+            <input type="text" id="staffRoles" placeholder="役割 (例: キッチン,締め作業)" style="width: 200px;">
+            
+            
+            
+            <label style="display:inline; margin-left: 10px;"><input type="checkbox" id="isLeader"> リーダー</label>
             <button onclick="addStaff()" style="margin-left: 10px;">登録</button>
         </div>
         <details>
-            <summary style="cursor:pointer; color:#007bff;">現在のスタッフ一覧を表示</summary>
+            <summary style="cursor:pointer; color:#007bff;">スタッフ一覧</summary>
             <table id="staffTable">
-                <thead><tr><th>ID</th><th>名前</th><th>時給</th><th>権限</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>名前</th>
+                        <th>時給</th>
+                        <th>役割・権限</th> <th>操作</th>
+                    </tr>
+                </thead>
                 <tbody></tbody>
             </table>
         </details>
     </div>
 
+    <div class="card" style="border-left: 5px solid #dc3545;">
+        <h2>2. 希望休 (NG日) の登録</h2>
+        <p><small>※ここで登録した日は、AIがシフトを入れないようにします。</small></p>
+        <div class="form-group">
+            <label>誰が？</label>
+            <select id="requestStaffSelect"></select> <label>いつ休む？</label>
+            <input type="date" id="requestDate">
+            
+            <button onclick="addRequest()" style="background-color: #dc3545; margin-top: 10px;">休みを登録</button>
+        </div>
+    </div>
+
     <div class="card">
-        <h2>2. シフト作成設定</h2>
+        <h2>3. シフト作成設定 & ルール</h2>
+        
+        <div style="background: #e9ecef; padding: 10px; border-radius: 4px; margin-bottom: 10px;">
+            <label>必須ルールの追加:</label>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <select id="ruleRole" style="width: 150px;">
+    <option value="">役割を選択...</option>
+</select>
+                <input type="number" id="ruleCount" value="1" style="width: 50px;">
+                <span>人以上/シフト</span>
+                <button onclick="addRule()" style="padding: 5px 10px; font-size: 14px;">追加</button>
+            </div>
+            <ul id="ruleList" style="list-style: none; padding: 0; margin-top: 10px;"></ul>
+        </div>
+
         <div class="form-group">
             <label>シフト開始日: <input type="date" id="startDate"></label>
             <button onclick="generateShift()">AIでシフトを生成・保存</button>
         </div>
     </div>
-
     <div class="card">
-        <div class="cost-panel">
-            期間中の推定人件費: <span id="totalCost" class="cost-value">¥0</span>
-        </div>
+        <div class="cost-panel">人件費: <span id="totalCost">¥0</span></div>
         <div id="calendar"></div>
     </div>
 
     <script>
         const API_URL = "http://localhost:8080/api";
         let calendar;
-        let staffMap = {}; // ID -> {name, wage} のオブジェクトに変更
+        let staffMap = {}; 
+        
+        // ★追加: ルール管理用の変数
+        let activeRules = []; 
 
         document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('startDate').valueAsDate = new Date();
+            document.getElementById('requestDate').valueAsDate = new Date();
             
             const calendarEl = document.getElementById('calendar');
             calendar = new FullCalendar.Calendar(calendarEl, {
@@ -88,32 +117,31 @@
                 locale: 'ja',
                 editable: true,  
                 droppable: true,
-                headerToolbar: {
-                    left: 'prev,next today',
-                    center: 'title',
-                    right: 'dayGridMonth,listMonth'
-                },
+                headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,listMonth' },
                 events: [],
 
                 eventDrop: async function(info) {
-                    // (変更なし: 重複チェックと更新処理)
+                    if (info.event.extendedProps.type === 'request') {
+                        alert("希望休は移動できません。一度削除して登録し直してください。");
+                        info.revert(); return;
+                    }
+                    
                     const shiftId = info.event.id;
                     const newDate = info.event.startStr;
                     const staffId = info.event.extendedProps.staffId;
 
-                    const allEvents = calendar.getEvents();
-                    const isDuplicate = allEvents.some(evt => {
-                        return evt.id !== info.event.id && 
-                               evt.startStr === newDate && 
-                               evt.extendedProps.staffId === staffId;
-                    });
+                    const isDuplicate = calendar.getEvents().some(evt => 
+                        evt.id !== info.event.id && evt.startStr === newDate && evt.extendedProps.staffId === staffId
+                    );
                     if (isDuplicate) {
-                        alert("エラー：その日には既に本人がシフトに入っています！");
+                        alert("その日には既に本人がいます！");
                         info.revert(); return;
                     }
+
                     if (!confirm(`${info.event.title} を ${newDate} に移動しますか？`)) {
                         info.revert(); return;
                     }
+
                     try {
                         const res = await fetch(`${API_URL}/shift/${shiftId}`, {
                             method: "PUT",
@@ -121,25 +149,25 @@
                             body: JSON.stringify({ date: newDate })
                         });
                         if (!res.ok) throw new Error("保存失敗");
-                        calculateTotalCost(); // ★移動したらコスト再計算（月を跨ぐ場合などに備えて）
-                    } catch (e) {
-                        alert(e); info.revert();
-                    }
+                        calculateTotalCost();
+                    } catch (e) { alert(e); info.revert(); }
                 },
+
                 eventClick: async function(info) {
-                    if (confirm(`${info.event.title} を削除しますか？`)) {
+                    const type = info.event.extendedProps.type;
+                    const msg = type === 'request' ? "この希望休を取り消しますか？" : "このシフトを削除しますか？";
+                    
+                    if (confirm(msg)) {
                         try {
-                            const res = await fetch(`${API_URL}/shift/${info.event.id}`, { method: "DELETE" });
+                            const endpoint = type === 'request' ? 'request' : 'shift';
+                            const res = await fetch(`${API_URL}/${endpoint}/${info.event.id}`, { method: "DELETE" });
                             if (!res.ok) throw new Error("削除失敗");
                             info.event.remove();
-                            calculateTotalCost(); // ★削除したらコスト再計算
+                            calculateTotalCost();
                         } catch (e) { alert(e); }
                     }
                 },
-                // ★表示期間が変わった時にも再計算したいので追加
-                datesSet: function() {
-                    calculateTotalCost();
-                }
+                datesSet: function() { calculateTotalCost(); }
             });
             calendar.render();
             initData();
@@ -148,6 +176,7 @@
         async function initData() {
             await loadStaff();          
             await loadExistingShifts(); 
+            await loadRequests();
         }
 
         async function loadStaff() {
@@ -155,16 +184,97 @@
                 const res = await fetch(`${API_URL}/staff`);
                 const staffList = await res.json();
                 staffMap = {};
+                
                 const tbody = document.querySelector("#staffTable tbody");
+                const staffSelect = document.getElementById("requestStaffSelect");
+                
+                // ★役割選択用のドロップダウンを取得
+                const roleSelect = document.getElementById("ruleRole");
+                
                 tbody.innerHTML = "";
+                staffSelect.innerHTML = ""; 
+                
+                // ★これまでの選択肢をリセット（最初の1個だけ残す）
+                roleSelect.innerHTML = '<option value="">役割を選択...</option>';
+
+                // ★全スタッフの役割を集めるための「重複なしリスト(Set)」を作る
+                const allRoles = new Set();
+
                 staffList.forEach(s => {
-                    // ★時給情報も保存
                     staffMap[s.id] = { name: s.name, wage: s.hourly_wage || 0 };
+                    
+                    let rolesHtml = "";
+                    if (s.roles) {
+                        // カンマ区切りを分解してリストに追加
+                        const roles = s.roles.split(',');
+                        roles.forEach(r => {
+                            const roleName = r.trim();
+                            if(roleName) allRoles.add(roleName); // ★リストに追加
+                            
+                            rolesHtml += `<span class="badge" style="background-color: #17a2b8; margin-right:2px;">${roleName}</span>`;
+                        });
+                    }
 
                     const badge = s.is_leader ? '<span class="badge badge-leader">Leader</span>' : '<span class="badge badge-staff">Staff</span>';
-                    tbody.innerHTML += `<tr><td>${s.id}</td><td>${s.name}</td><td>¥${s.hourly_wage}</td><td>${badge}</td></tr>`;
+                    
+                    tbody.innerHTML += `<tr>
+                        <td>${s.id}</td>
+                        <td>${s.name}</td>
+                        <td>¥${s.hourly_wage}</td>
+                        <td>${rolesHtml} ${badge}</td>
+                        <td><button class="delete-btn" onclick="deleteStaff(${s.id})">削除</button></td>
+                    </tr>`;
+                    
+                    const option = document.createElement("option");
+                    option.value = s.id;
+                    option.text = `${s.name} (ID:${s.id})`;
+                    staffSelect.appendChild(option);
                 });
+
+                // ★集めた役割をドロップダウンに追加する
+                allRoles.forEach(role => {
+                    const option = document.createElement("option");
+                    option.value = role;
+                    option.text = role;
+                    roleSelect.appendChild(option);
+                });
+
             } catch(e) { console.error(e); }
+        }
+
+        // ★追加: ルールを追加する関数
+        function addRule() {
+            const role = document.getElementById("ruleRole").value;
+            const count = parseInt(document.getElementById("ruleCount").value);
+            
+            if(!role || count <= 0) return alert("役割名と人数を正しく入れてください");
+            
+            activeRules.push({ role, count });
+            renderRules();
+            
+            document.getElementById("ruleRole").value = ""; 
+        }
+
+        // ★追加: ルール一覧を表示する関数
+        function renderRules() {
+            const list = document.getElementById("ruleList");
+            list.innerHTML = "";
+            activeRules.forEach((r, index) => {
+                const li = document.createElement("li");
+                li.style.marginBottom = "5px";
+                li.innerHTML = `
+                    <span class="badge" style="background-color: #6f42c1;">${r.role}</span> が
+                    <b>${r.count}</b> 人以上 
+                    <button onclick="removeRule(${index})" style="margin-left:5px; padding:2px 5px; background:#dc3545; font-size:12px;">×</button>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        // ★追加: ルールを削除する関数
+        function removeRule(index) {
+            activeRules.splice(index, 1);
+            renderRules();
         }
 
         async function loadExistingShifts() {
@@ -172,65 +282,88 @@
                 const res = await fetch(`${API_URL}/shift`);
                 if (!res.ok) return;
                 const shifts = await res.json();
-                
                 const events = shifts.map(s => {
                     const staffInfo = staffMap[s.staff_id] || { name: `ID:${s.staff_id}`, wage: 0 };
-                    
                     let title = `${staffInfo.name} `; 
-                    let color = "";
-                    let hours = 0;
-
-                    if (s.shift_type === 1) { 
-                        title += "早(09-18)"; 
-                        color = "#3788d8"; 
-                        hours = 8; // 休憩1時間引いて8時間労働と仮定
-                    } else if (s.shift_type === 2) { 
-                        title += "遅(13-22)"; 
-                        color = "#28a745"; 
-                        hours = 8;
-                    }
+                    let color = s.shift_type === 1 ? "#3788d8" : "#28a745";
+                    let suffix = s.shift_type === 1 ? "早" : "遅";
                     
                     return {
-                        id: s.id,
-                        title: title,
-                        start: s.date,
-                        color: color,
-                        extendedProps: { 
-                            staffId: s.staff_id,
-                            wage: staffInfo.wage, // ★イベントに時給と時間を埋め込む
-                            hours: hours
-                        }
+                        id: s.id, title: title + suffix, start: s.date, color: color,
+                        extendedProps: { type: 'shift', staffId: s.staff_id, wage: staffInfo.wage, hours: 8 }
                     };
                 });
-
-                calendar.removeAllEvents();
+                calendar.removeAllEvents(); 
                 calendar.addEventSource(events);
-                
-                // データ読み込み後に計算
-                calculateTotalCost();
-
-            } catch (e) { console.error("シフト読み込みエラー:", e); }
+            } catch (e) { console.error(e); }
         }
 
-        // ★人件費計算ロジック
+        async function loadRequests() {
+            try {
+                const res = await fetch(`${API_URL}/request`);
+                if (!res.ok) return;
+                const reqs = await res.json();
+                
+                const events = reqs.map(r => {
+                    const staffInfo = staffMap[r.staff_id] || { name: `ID:${r.staff_id}` };
+                    return {
+                        id: r.id,
+                        title: `✕ ${staffInfo.name}`,
+                        start: r.date,
+                        className: 'request-ng',
+                        display: 'background',
+                        color: '#dc3545',
+                        extendedProps: { type: 'request', staffId: r.staff_id, wage: 0, hours: 0 }
+                    };
+                });
+                calendar.addEventSource(events);
+            } catch (e) { console.error(e); }
+        }
+
+        async function addRequest() {
+            const staffId = document.getElementById("requestStaffSelect").value;
+            const date = document.getElementById("requestDate").value;
+            
+            if(!staffId || !date) return alert("スタッフと日付を選んでください");
+
+            try {
+                const res = await fetch(`${API_URL}/request`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ staff_id: parseInt(staffId), date: date })
+                });
+                if(res.ok) {
+                    alert("希望休を登録しました");
+                    calendar.removeAllEvents();
+                    await loadExistingShifts();
+                    await loadRequests();
+                } else {
+                    alert("登録失敗");
+                }
+            } catch(e) { alert(e); }
+        }
+
+        async function deleteStaff(id) {
+            if(!confirm("本当に削除しますか？")) return;
+            await fetch(`${API_URL}/staff/${id}`, { method: "DELETE" });
+            initData();
+        }
+
         function calculateTotalCost() {
-            // カレンダーに表示されている全イベントを取得
             const events = calendar.getEvents();
             let total = 0;
-
             events.forEach(evt => {
                 const wage = evt.extendedProps.wage || 0;
                 const hours = evt.extendedProps.hours || 0;
                 total += wage * hours;
             });
-
-            // 3桁区切りで表示
             document.getElementById("totalCost").innerText = "¥" + total.toLocaleString();
         }
 
         async function addStaff() {
             const name = document.getElementById("staffName").value;
-            const wage = document.getElementById("staffWage").value; // ★時給取得
+            const wage = document.getElementById("staffWage").value;
+            const roles = document.getElementById("staffRoles").value; 
             const isLeader = document.getElementById("isLeader").checked;
             
             if(!name) return alert("名前を入れてください");
@@ -240,24 +373,29 @@
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ 
                     name, 
-                    is_leader: isLeader,
-                    hourly_wage: parseInt(wage) // ★数値として送信
+                    is_leader: isLeader, 
+                    hourly_wage: parseInt(wage),
+                    roles: roles
                 })
             });
+            
             document.getElementById("staffName").value = "";
+            document.getElementById("staffRoles").value = ""; 
             initData(); 
         }
 
+        // ★更新: ルール(activeRules)を送信するように書き換え
         async function generateShift() {
             const startDateStr = document.getElementById("startDate").value;
             if(!startDateStr) return alert("開始日を選んでください");
 
-            const reqBody = {
-                start_date: startDateStr,
+            const reqBody = { 
+                start_date: startDateStr, 
                 days: 30, 
-                requests: [],
-                requirements: [] 
+                requests: [], 
+                role_constraints: activeRules // ★ここが重要！
             };
+
             alert("AIが計算・保存中です...");
             try {
                 const res = await fetch(`${API_URL}/shift`, {
@@ -267,11 +405,11 @@
                 });
                 const data = await res.json();
                 if(res.ok) {
+                    calendar.removeAllEvents();
                     await loadExistingShifts(); 
+                    await loadRequests();
                     alert(data.message);
-                } else {
-                    alert("エラー: " + JSON.stringify(data));
-                }
+                } else { alert("エラー: " + JSON.stringify(data)); }
             } catch (e) { alert("エラー: " + e); }
         }
     </script>

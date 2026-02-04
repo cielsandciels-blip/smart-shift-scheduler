@@ -12,41 +12,43 @@ import (
 )
 
 func main() {
-	// 1. DB接続
 	db := database.NewDB()
-
-	// 2. Pythonエンジンの準備
 	scriptPath := filepath.Join("..", "engine", "main.py")
 	shiftEngine := engine.NewShiftEngine(scriptPath)
 
-	// 3. 依存関係の組み立て
-	
-	// スタッフ管理
+	// Staff
 	staffRepo := database.NewStaffRepository(db)
 	staffUsecase := usecase.NewStaffUsecase(staffRepo)
 	staffHandler := handler.NewStaffHandler(staffUsecase)
 
-	// シフト作成
-	shiftRepo := database.NewShiftRepository(db) // ★追加
-	// ★修正点: 引数を3つ渡す (engine, staffRepo, shiftRepo)
-	shiftUsecase := usecase.NewShiftUsecase(shiftEngine, staffRepo, shiftRepo) 
+	// Shift & Request (★ここが変わりました)
+	shiftRepo := database.NewShiftRepository(db)
+	requestRepo := database.NewRequestRepository(db) // 追加
+	
+	// 引数が4つになりました (engine, staffRepo, shiftRepo, requestRepo)
+	shiftUsecase := usecase.NewShiftUsecase(shiftEngine, staffRepo, shiftRepo, requestRepo)
+	
 	shiftHandler := handler.NewShiftHandler(shiftUsecase)
+	requestHandler := handler.NewRequestHandler(shiftUsecase) // 追加
 
-	// 4. Webサーバーの設定
 	r := gin.Default()
-	r.Static("/web", "../frontend") // フロントエンド配信
+	r.Static("/web", "../frontend")
 
 	api := r.Group("/api")
 	{
 		api.POST("/staff", staffHandler.Create)
 		api.GET("/staff", staffHandler.List)
+		api.DELETE("/staff/:id", staffHandler.Delete)
 		
 		api.POST("/shift", shiftHandler.Generate)
 		api.GET("/shift", shiftHandler.List)
-
-		// 追加: 更新と削除
 		api.PUT("/shift/:id", shiftHandler.Update)
 		api.DELETE("/shift/:id", shiftHandler.Delete)
+
+		// ★リクエスト用のAPIを追加
+		api.POST("/request", requestHandler.Create)
+		api.GET("/request", requestHandler.List)
+		api.DELETE("/request/:id", requestHandler.Delete)
 	}
 
 	fmt.Println("サーバーを起動します... http://localhost:8080/web/index.html")

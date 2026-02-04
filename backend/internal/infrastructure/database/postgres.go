@@ -27,7 +27,7 @@ dsn := "host=127.0.0.1 user=manager password=manager123 dbname=shift_db port=543
 
 	// ★マイグレーション（超重要）
 	// Goのstruct（Staffなど）を見て、自動でSQLのテーブルを作ってくれる機能
-	err = db.AutoMigrate(&domain.Staff{}, &domain.Shift{})
+	err = db.AutoMigrate(&domain.Staff{}, &domain.Shift{}, &domain.ShiftRequest{})
 	if err != nil {
 		log.Fatal("テーブル作成に失敗しました:", err)
 	}
