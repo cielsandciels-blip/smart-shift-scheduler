@@ -1,98 +1,41 @@
 # Smart Shift Scheduler (AI Shift Optimization System)
 
-![Go](https://img.shields.io/badge/Go-1.23-00ADD8?style=for-the-badge&logo=go)
-![Python](https://img.shields.io/badge/Python-3.9-3776AB?style=for-the-badge&logo=python)
-![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED?style=for-the-badge&logo=docker)
-![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
+飲食店や小売店の「シフト作成業務」を自動化するSaaS型Webアプリケーションです。
+店長が数時間かけて行っていたシフト組みのパズルを、数理最適化AI（Google OR-Tools）を用いて数秒で解決します。
+「希望休」「連勤制限」「日別の必要人数」など、複雑な制約条件をすべて満たした最適解を自動生成するツールとして開発しました。
 
-## 概要 (Overview)
-**数理最適化AIが、店長の代わりに「シフト作成パズル」を数秒で解決。**
+## 特徴 (Features)
 
-飲食店や小売店におけるシフト作成業務を自動化するSaaS型Webアプリケーションです。
-従業員の「希望休」「連勤制限（労務コンプライアンス）」「日ごとの必要人数」「リーダーの配置」など、複雑に絡み合う制約条件をすべて満たした最適解を自動生成します。
+1. **AI自動シフト生成**: Pythonの数理最適化ライブラリ（`Google OR-Tools`）を活用し、制約充足問題（CSP）として厳密な解を導出。最大5連勤までの労務コンプライアンスにも対応。
+2. **直感的なUI/UX**: 生成されたシフトは `FullCalendar.js` 上でドラッグ＆ドロップするだけで修正可能。AI計算中は非同期でローディングを表示し、処理待ちのストレスを軽減。
+3. **柔軟なルール設定**: 「土日は3人必要」「早番・遅番のバランス」など、店舗ごとに異なるルールをGUIから動的に追加・変更が可能。
+4. **実務特化の出力**: 作成したシフトをExcelでそのまま開けるCSV形式（UTF-8 BOM付）で出力。月間の概算人件費もリアルタイムで試算。
+5. **マイクロサービス構成**: 高速なGo言語サーバーと計算特化のPythonを連携させた、拡張性の高いアーキテクチャを採用。
 
-従来の「経験と勘」に頼った調整業務を、**Google OR-Tools** を用いた数理最適化アルゴリズムによって標準化・高速化しました。
+## 🛠 使用技術 (Tech Stack)
 
-<div align="center">
-  <img src="img/shift1.png" alt="Application Dashboard" width="100%">
-</div>
+- **Backend**: Go 1.23 / Gin (Clean Architecture採用)
+- **AI Engine**: Python 3.9 / Google OR-Tools
+- **Database**: PostgreSQL / SQLite (GORMにより切り替え可能)
+- **Infrastructure**: Docker (Multi-stage build)
+- **Frontend**: HTML5, CSS3, JavaScript (FullCalendar.js)
+- **Deployment**: Render (Docker Container)
 
-##  主な機能 (Features)
+## プロジェクトの構造
+- `backend/cmd/api/main.go`: Go APIサーバーのエントリーポイント
+- `backend/internal/`: ビジネスロジック（Handler, Usecase, Repository）
+- `backend/solver.py`: 数理最適化計算を行うPythonスクリプト
+- `frontend/`: ユーザーインターフェース（HTML/CSS/JS）
+- `Dockerfile`: GoとPythonが共存するコンテナ構築設定
+- `go.mod`: Go言語の依存関係定義
 
-* ** AI自動シフト生成**
-    * スタッフの希望休、役割（リーダー必須など）、最大連勤数（5連勤まで）を考慮して自動計算。
-    * 制約充足問題 (CSP) として定式化し、厳密な解を導出。
-* ** 直感的なUI/UX**
-    * 生成されたシフトはカレンダー上で**ドラッグ＆ドロップ**で微調整可能。
-    * AI計算中は非同期でローディングを表示し、処理待ちのストレスを軽減。
-* ** 柔軟なルール設定**
-    * 「土日は3人必要」「早番・遅番のバランス」など、店舗ごとのルールをGUIから動的に設定可能。
-* ** 実務特化の出力機能**
-    * 作成したシフトをExcelでそのまま開けるCSV形式（UTF-8 BOM付）で出力。
-    * 月間の概算人件費をリアルタイムでシミュレーション表示。
+## 開発の背景
+これまで現場の店長が「経験と勘」に頼って長時間かけていた調整業務を、技術の力で効率化したいと考え開発しました。単にシフトを埋めるだけでなく、「過重労働の防止」や「人件費の管理」といった経営視点の課題も同時に解決できる、実用性を重視したソリューションを目指しました。
 
-## 🛠 技術スタック (Tech Stack)
-
-**「高速なWebサーバー」** と **「高度な計算エンジン」** を適材適所で組み合わせたマイクロサービスアーキテクチャを採用しています。
-
-| Category | Technology | Description |
-| --- | --- | --- |
-| **Backend** | **Go (Gin)** | 高速なAPIサーバー。Clean Architecture (Handler/Usecase/Repository) を採用し、保守性を確保。 |
-| **AI Engine** | **Python 3.9** | 複雑な計算ロジックを担当。Google OR-Toolsを使用。 |
-| **Frontend** | HTML5 / JS | FullCalendar.js を用いたインタラクティブなSPAライクなUI。 |
-| **Database** | PostgreSQL / SQLite | GORM (ORM) を使用し、環境に応じてDBを切り替え可能。 |
-| **Infrastructure** | **Docker** | Multi-stage buildにより、GoとPythonが共存する軽量コンテナを構築。 |
-| **Hosting** | Render | Dockerコンテナとしてクラウドへデプロイ。 |
-
-##  アーキテクチャ (Architecture)
-
-Go言語のAPIサーバーがリクエストを受け付け、計算が必要な処理のみPythonプロセスへ委譲する設計です。
-プロセス間のデータ受け渡しにはJSONを使用し、疎結合な設計を実現しています。
-
-mermaid
-graph LR
-    User[User (Browser)] -- HTTP Request --> Go[Go Server (Gin)]
-    Go -- JSON Input --> Py[Python Script (OR-Tools)]
-    Py -- JSON Output --> Go
-    Go -- Response --> User
-    Go <--> DB[(Database)]
-
-##  ディレクトリ構成 (Directory Structure)
-
-smart-shift-scheduler/
-├── backend/
-│   ├── cmd/api/          # エントリーポイント (main.go)
-│   ├── internal/
-│   │   ├── domain/       # ドメインモデル (Entities)
-│   │   ├── usecase/      # ビジネスロジック (Shift生成フローなど)
-│   │   ├── infrastructure/ # DB接続, Repository実装
-│   │   └── handler/      # HTTPハンドラー
-│   ├── solver.py         # AI計算エンジン (Python)
-│   └── go.mod
-├── frontend/             # HTML, CSS, JavaScript
-└── Dockerfile            # デプロイ用設定 (Multi-stage build)
-
-
-##  ローカルでの実行方法 (How to Run)
-
-**必要要件**
-Docker Desktop
-
-1. データベースの起動
-PostgreSQLコンテナを起動します。
-
-docker run --name shift-db -p 5433:5432 -e POSTGRES_USER=manager -e POSTGRES_PASSWORD=manager123 -e POSTGRES_DB=shift_db -d postgres
-
-2. アプリケーションの起動
-バックエンドサーバーを起動します。
-
-cd backend
-go run cmd/api/main.go
-
-3. ブラウザでアクセス
-ブラウザで以下のURLを開いてください。 http://localhost:8080
-
-Author
-KOUKI
-
-License: MIT
+## 使い方 (Local Setup)
+1. リポジトリをクローン
+2. Dockerでデータベースを起動
+   `docker run --name shift-db -p 5433:5432 -e POSTGRES_USER=manager -e POSTGRES_PASSWORD=manager123 -e POSTGRES_DB=shift_db -d postgres`
+3. バックエンドディレクトリへ移動しサーバーを起動
+   `cd backend && go run cmd/api/main.go`
+4. ブラウザで `http://localhost:8080` にアクセス
