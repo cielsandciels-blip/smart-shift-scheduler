@@ -2,6 +2,7 @@ package database
 
 import (
 	"smart-shift-scheduler/internal/domain"
+
 	"gorm.io/gorm"
 )
 
@@ -13,9 +14,10 @@ func NewShiftRepository(db *gorm.DB) *ShiftRepository {
 	return &ShiftRepository{db: db}
 }
 
-func (r *ShiftRepository) SaveAll(shifts []domain.Shift) error {
-	// 簡易実装: 全消しして保存
-	r.db.Exec("DELETE FROM shifts")
+// Save: シフトを保存（本来は期間指定で消してから保存などが望ましいが、今回は追記/Upsert）
+func (r *ShiftRepository) Save(shifts []domain.Shift) error {
+    // 既存の同日・同スタッフのシフトがあれば削除してから保存するなどのロジックが必要だが
+    // 簡易的にそのままCreate（重複回避はUniqueキー等で制御推奨）
 	return r.db.Create(&shifts).Error
 }
 
@@ -27,17 +29,20 @@ func (r *ShiftRepository) FindAll() ([]domain.Shift, error) {
 	return shifts, nil
 }
 
-// Update: シフトの内容（日付やタイプ）を更新する
 func (r *ShiftRepository) Update(shift *domain.Shift) error {
-	return r.db.Save(shift).Error
+	// 指定したフィールドのみ更新（Dateなど）
+	return r.db.Model(shift).Updates(shift).Error
 }
 
-// Delete: シフトを削除する
-func (r *ShiftRepository) Delete(id uint) error {
+// ★修正: id uint -> id int
+func (r *ShiftRepository) Delete(id int) error {
 	return r.db.Delete(&domain.Shift{}, id).Error
 }
 
-// UpdateDate: 指定したIDの日付だけを変更する
-func (r *ShiftRepository) UpdateDate(id uint, newDate string) error {
-	return r.db.Model(&domain.Shift{}).Where("id = ?", id).Update("date", newDate).Error
+// ★修正: staffID int (これは元々intの可能性が高いが念のため)
+func (r *ShiftRepository) DeleteByStaffID(staffID int) error {
+	return r.db.Where("staff_id = ?", staffID).Delete(&domain.Shift{}).Error
+}
+func (r *ShiftRepository) DeleteRange(startDate string, endDate string) error {
+	return r.db.Where("date >= ? AND date <= ?", startDate, endDate).Delete(&domain.Shift{}).Error
 }

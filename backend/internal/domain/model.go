@@ -25,27 +25,28 @@ type ShiftRequest struct {
 	Type    string `json:"type"`
 }
 
-// ★これが抜けていました！★
 // RoleConstraint: 役割ごとの必要人数ルール
 type RoleConstraint struct {
 	Role  string `json:"role"`
 	Count int    `json:"count"`
 }
 
+// DailyRequirement: その日の必要人数設定
+type DailyRequirement struct {
+	ID          uint   `gorm:"primaryKey" json:"id"`
+	Date        string `json:"date" gorm:"unique"`
+	MorningNeed int    `json:"morning_need"`
+	EveningNeed int    `json:"evening_need"`
+}
+
 // ShiftInput: Pythonに渡すデータ
 type ShiftInput struct {
 	StaffList       []Staff            `json:"staff_list"`
 	Requests        []ShiftRequest     `json:"requests"`
-	RoleConstraints []RoleConstraint   `json:"role_constraints"` // ★ここで使っています
+	RoleConstraints []RoleConstraint   `json:"role_constraints"`
 	Requirements    []DailyRequirement `json:"requirements"`
 	Days            int                `json:"days"`
-}
-
-// DailyRequirement: その日に必要な人数 (今は使っていないがPython互換のため残す)
-type DailyRequirement struct {
-	Date        string `json:"date"`
-	MorningNeed int    `json:"morning_need"`
-	EveningNeed int    `json:"evening_need"`
+	StartDate       string             `json:"start_date"` // ★これを追加しました！
 }
 
 // ShiftResult: 計算結果

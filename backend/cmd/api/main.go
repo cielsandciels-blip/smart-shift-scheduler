@@ -21,15 +21,16 @@ func main() {
 	staffUsecase := usecase.NewStaffUsecase(staffRepo)
 	staffHandler := handler.NewStaffHandler(staffUsecase)
 
-	// Shift & Request (★ここが変わりました)
+	// Shift & Request & Requirement (★ここを拡張)
 	shiftRepo := database.NewShiftRepository(db)
-	requestRepo := database.NewRequestRepository(db) // 追加
+	requestRepo := database.NewRequestRepository(db)
+	requireRepo := database.NewRequirementRepository(db) // ★追加1: 必要人数の保存場所
 	
-	// 引数が4つになりました (engine, staffRepo, shiftRepo, requestRepo)
-	shiftUsecase := usecase.NewShiftUsecase(shiftEngine, staffRepo, shiftRepo, requestRepo)
+	// ★追加2: 引数が5つになりました (engine, staffRepo, shiftRepo, requestRepo, requireRepo)
+	shiftUsecase := usecase.NewShiftUsecase(shiftEngine, staffRepo, shiftRepo, requestRepo, requireRepo)
 	
 	shiftHandler := handler.NewShiftHandler(shiftUsecase)
-	requestHandler := handler.NewRequestHandler(shiftUsecase) // 追加
+	requestHandler := handler.NewRequestHandler(shiftUsecase)
 
 	r := gin.Default()
 	r.Static("/web", "../frontend")
@@ -45,10 +46,16 @@ func main() {
 		api.PUT("/shift/:id", shiftHandler.Update)
 		api.DELETE("/shift/:id", shiftHandler.Delete)
 
-		// ★リクエスト用のAPIを追加
 		api.POST("/request", requestHandler.Create)
 		api.GET("/request", requestHandler.List)
 		api.DELETE("/request/:id", requestHandler.Delete)
+
+		// ★追加3: 必要人数設定のAPI
+		api.POST("/requirement", shiftHandler.SaveRequirement)
+		api.GET("/requirement", shiftHandler.ListRequirements)
+		api.DELETE("/requirement/:id", shiftHandler.DeleteRequirement) // 追加
+	
+		api.GET("/export", shiftHandler.Export)
 	}
 
 	fmt.Println("サーバーを起動します... http://localhost:8080/web/index.html")
